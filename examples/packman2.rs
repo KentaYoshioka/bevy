@@ -6,50 +6,51 @@ use bevy::{
     sprite::MaterialMesh2dBundle,
     time::FixedTimestep,
 };
+use rand::Rng;
 
 // Defines the amount of time that should elapse between each physics step.
-const TIME_STEP: f32 = 1.0 / 60.0;
+const TIME_STEP: f32 = 1.0 / 30.0;
 
 // These constants are defined in `Transform` units.
 // Using the default 2D camera they correspond 1:1 with screen pixels.
 const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
-const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
-const PADDLE_SPEED: f32 = 500.0;
+const PADDLE_SPEED: f32 = 200.0;
 // How close can the paddle get to the wall
 const PADDLE_PADDING: f32 = 10.0;
 
 // We set the z-value of the ball to 1 so it renders on top in the case of overlapping sprites.
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
-const BALL_SIZE: Vec3 = Vec3::new(30.0, 30.0, 0.0);
-const BALL_SPEED: f32 = 400.0;
+const ENEMMY_STARTING_POSITION: Vec3 = Vec3::new(0.0, 20.0, 1.0);
+const BALL_SIZE: Vec3 = Vec3::new(10.0, 10.0, 0.0);
+const PACKMAN_SIZE: Vec3 = Vec3::new(40.0, 40.0, 40.0);
+const ENEMMY_SIZE: Vec3 = Vec3::new(30.0, 30.0, 30.0);
+const BALL_SPEED: f32 = 200.0;
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 
 const WALL_THICKNESS: f32 = 10.0;
 // x coordinates
-const LEFT_WALL: f32 = -450.;
-const RIGHT_WALL: f32 = 450.;
+const LEFT_WALL: f32 = -500.;
+const RIGHT_WALL: f32 = 500.;
 // y coordinates
-const BOTTOM_WALL: f32 = -300.;
-const TOP_WALL: f32 = 300.;
+const BOTTOM_WALL: f32 = -350.;
+const TOP_WALL: f32 = 350.;
 
 const BRICK_SIZE: Vec2 = Vec2::new(100., 30.);
 // These values are exact
-const GAP_BETWEEN_PADDLE_AND_BRICKS: f32 = 270.0;
-const GAP_BETWEEN_BRICKS: f32 = 5.0;
+const GAP_BETWEEN_BRICKS: f32 = 3.0;
 // These values are lower bounds, as the number of bricks is computed
 const GAP_BETWEEN_BRICKS_AND_CEILING: f32 = 20.0;
-const GAP_BETWEEN_BRICKS_AND_SIDES: f32 = 20.0;
 
 const SCOREBOARD_FONT_SIZE: f32 = 40.0;
 const SCOREBOARD_TEXT_PADDING: Val = Val::Px(0.0);
 
-const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
-const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
-const BALL_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const BACKGROUND_COLOR: Color = Color::rgb(0.0, 0.0, 0.0);
+const PADDLE_COLOR: Color = Color::rgb(1.0, 1.0, 0.0);
 const BRICK_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const WALL_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
 const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const ENEMMY_COLOR: Color = Color::rgb(1.0, 0.0, 0.0);
 
 fn main() {
     App::new()
@@ -62,8 +63,8 @@ fn main() {
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                 .with_system(check_for_collisions)
-                .with_system(move_paddle.before(check_for_collisions))
                 .with_system(apply_velocity.before(check_for_collisions))
+                .with_system(move_paddle.before(check_for_collisions))
                 .with_system(play_collision_sound.after(check_for_collisions)),
         )
         .add_system(update_scoreboard)
@@ -82,6 +83,9 @@ struct Velocity(Vec2);
 
 #[derive(Component)]
 struct Collider;
+
+#[derive(Component)]
+struct Enemmy;
 
 #[derive(Default)]
 struct CollisionEvent;
@@ -184,37 +188,30 @@ fn setup(
     let ball_collision_sound = asset_server.load("sounds/breakout_collision.ogg");
     commands.insert_resource(CollisionSound(ball_collision_sound));
 
-    // Paddle
-    let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
-
-    commands.spawn((
-        SpriteBundle {
-            transform: Transform {
-                translation: Vec3::new(0.0, paddle_y, 0.0),
-                scale: PADDLE_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: PADDLE_COLOR,
-                ..default()
-            },
-            ..default()
-        },
-        Paddle,
-        Collider,
-    ));
-
     // Ball
     commands.spawn((
         MaterialMesh2dBundle {
             mesh: meshes.add(shape::Circle::default().into()).into(),
-            material: materials.add(ColorMaterial::from(BALL_COLOR)),
-            transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
+            material: materials.add(ColorMaterial::from(PADDLE_COLOR)),
+            transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(PACKMAN_SIZE),
             ..default()
         },
         Ball,
+    ));
+
+    // Enemmy
+    commands.spawn((
+        MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Circle::default().into()).into(),
+            material: materials.add(ColorMaterial::from(ENEMMY_COLOR)),
+            transform: Transform::from_translation(ENEMMY_STARTING_POSITION).with_scale(ENEMMY_SIZE),
+            ..default()
+        },
+        Enemmy,
+        Collider,
         Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
     ));
+
 
     // Scoreboard
     commands.spawn(
@@ -256,8 +253,8 @@ fn setup(
     assert!(BRICK_SIZE.x > 0.0);
     assert!(BRICK_SIZE.y > 0.0);
 
-    let total_width_of_bricks = (RIGHT_WALL - LEFT_WALL) - 2. * GAP_BETWEEN_BRICKS_AND_SIDES;
-    let bottom_edge_of_bricks = paddle_y + GAP_BETWEEN_PADDLE_AND_BRICKS;
+    let total_width_of_bricks = RIGHT_WALL - LEFT_WALL;
+    let bottom_edge_of_bricks = BOTTOM_WALL + 10.0;
     let total_height_of_bricks = TOP_WALL - bottom_edge_of_bricks - GAP_BETWEEN_BRICKS_AND_CEILING;
 
     assert!(total_width_of_bricks > 0.0);
@@ -265,8 +262,8 @@ fn setup(
 
     // Given the space available, compute how many rows and columns of bricks we can fit
     let n_columns = (total_width_of_bricks / (BRICK_SIZE.x + GAP_BETWEEN_BRICKS)).floor() as usize;
-    let n_rows = (total_height_of_bricks / (BRICK_SIZE.y + GAP_BETWEEN_BRICKS)).floor() as usize;
-    let n_vertical_gaps = n_columns - 1;
+    let n_rows = (total_height_of_bricks / (BRICK_SIZE.x + GAP_BETWEEN_BRICKS)).floor() as usize;
+    let n_vertical_gaps = n_columns;
 
     // Because we need to round the number of columns,
     // the space on the top and sides of the bricks only captures a lower bound, not an exact value
@@ -280,60 +277,74 @@ fn setup(
     // In Bevy, the `translation` of an entity describes the center point,
     // not its bottom-left corner
     let offset_x = left_edge_of_bricks + BRICK_SIZE.x / 2.;
-    let offset_y = bottom_edge_of_bricks + BRICK_SIZE.y / 2.;
+    let offset_y = bottom_edge_of_bricks + BRICK_SIZE.x / 2.;
+
 
     for row in 0..n_rows {
         for column in 0..n_columns {
             let brick_position = Vec2::new(
-                offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
-                offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
+                offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS)+ rand::thread_rng().gen_range(0..50) as f32,
+                offset_y + row as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS) + rand::thread_rng().gen_range(0..50) as f32,
             );
-
             // brick
-            commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: BRICK_COLOR,
-                        ..default()
-                    },
-                    transform: Transform {
-                        translation: brick_position.extend(0.0),
-                        scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
-                        ..default()
-                    },
-                    ..default()
-                },
-                Brick,
-                Collider,
-            ));
+            if rand::thread_rng().gen_range(0..2) == 1 {
+              commands.spawn((
+                  MaterialMesh2dBundle {
+                      mesh: meshes.add(shape::Circle::default().into()).into(),
+                      material: materials.add(ColorMaterial::from(BRICK_COLOR)),
+                      transform: Transform::from_translation(brick_position.extend(0.0)).with_scale(BALL_SIZE),
+                      ..default()
+                  },
+                  Brick,
+                  Collider,
+              ));
+            } else{}
         }
     }
 }
 
 fn move_paddle(
     keyboard_input: Res<Input<KeyCode>>,
-    mut query: Query<&mut Transform, With<Paddle>>,
+    mut query: Query<&mut Transform, With<Ball>>,
 ) {
     let mut paddle_transform = query.single_mut();
-    let mut direction = 0.0;
+    let mut direction_x = 0.0;
+    let mut direction_y = 0.0;
 
     if keyboard_input.pressed(KeyCode::Left) {
-        direction -= 1.0;
+        direction_x -= 1.0;
     }
 
     if keyboard_input.pressed(KeyCode::Right) {
-        direction += 1.0;
+        direction_x += 1.0;
     }
 
+    if keyboard_input.pressed(KeyCode::Up) {
+        direction_y += 1.0;
+    }
+
+    if keyboard_input.pressed(KeyCode::Down) {
+        direction_y -= 1.0;
+    }
     // Calculate the new horizontal paddle position based on player input
-    let new_paddle_position = paddle_transform.translation.x + direction * PADDLE_SPEED * TIME_STEP;
+    let  new_paddle_position_x = paddle_transform.translation.x + direction_x * PADDLE_SPEED * TIME_STEP;
+    let  new_paddle_position_y = paddle_transform.translation.y + direction_y * PADDLE_SPEED * TIME_STEP;
 
     // Update the paddle position,
     // making sure it doesn't cause the paddle to leave the arena
-    let left_bound = LEFT_WALL + WALL_THICKNESS / 2.0 + PADDLE_SIZE.x / 2.0 + PADDLE_PADDING;
-    let right_bound = RIGHT_WALL - WALL_THICKNESS / 2.0 - PADDLE_SIZE.x / 2.0 - PADDLE_PADDING;
+    let left_bound = LEFT_WALL + WALL_THICKNESS / 2.0 + PADDLE_SIZE.y / 2.0 + PADDLE_PADDING;
+    let right_bound = RIGHT_WALL - WALL_THICKNESS / 2.0 - PADDLE_SIZE.y / 2.0 - PADDLE_PADDING;
+    let top_bound = TOP_WALL + WALL_THICKNESS / 2.0 - PADDLE_SIZE.y / 2.0 - PADDLE_PADDING;
+    let bottom_bound = BOTTOM_WALL - WALL_THICKNESS / 2.0 + PADDLE_SIZE.y / 2.0 + PADDLE_PADDING;
 
-    paddle_transform.translation.x = new_paddle_position.clamp(left_bound, right_bound);
+    paddle_transform.translation.x = new_paddle_position_x.clamp(left_bound, right_bound);
+    paddle_transform.translation.y = new_paddle_position_y.clamp(bottom_bound, top_bound);
+}
+
+
+fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
+    let mut text = query.single_mut();
+    text.sections[1].value = scoreboard.score.to_string();
 }
 
 fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>) {
@@ -343,20 +354,19 @@ fn apply_velocity(mut query: Query<(&mut Transform, &Velocity)>) {
     }
 }
 
-fn update_scoreboard(scoreboard: Res<Scoreboard>, mut query: Query<&mut Text>) {
-    let mut text = query.single_mut();
-    text.sections[1].value = scoreboard.score.to_string();
-}
-
 fn check_for_collisions(
     mut commands: Commands,
     mut scoreboard: ResMut<Scoreboard>,
-    mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
+    mut ball_query: Query<&Transform, With<Ball>>,
+    mut enemmy_query: Query<(&mut Velocity, &Transform), With<Enemmy>>,
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
-    let (mut ball_velocity, ball_transform) = ball_query.single_mut();
+    let ball_transform = ball_query.single_mut();
     let ball_size = ball_transform.scale.truncate();
+
+    let (mut enemmy_velocity, enemmy_transform) = enemmy_query.single_mut();
+    let enemmy_size = enemmy_transform.scale.truncate();
 
     // check collision with walls
     for (collider_entity, transform, maybe_brick) in &collider_query {
@@ -364,9 +374,10 @@ fn check_for_collisions(
             ball_transform.translation,
             ball_size,
             transform.translation,
-            transform.scale.truncate(),
+            transform.scale.truncate(),   
         );
-        if let Some(collision) = collision {
+
+        if let Some(_collision) = collision {
             // Sends a collision event so that other systems can react to the collision
             collision_events.send_default();
 
@@ -377,27 +388,51 @@ fn check_for_collisions(
             }
 
             // reflect the ball when it collides
+            let _reflect_x = false;
+            let _reflect_y = false;
+        }
+    }
+
+    for (collider_entity, transform, maybe_brick) in &collider_query {
+        let collision = collide(
+            enemmy_transform.translation,
+            enemmy_size,
+            transform.translation,
+            transform.scale.truncate(),   
+        );
+    
+        if let Some(collision) = collision {
+        // Sends a collision event so that other systems can react to the collision
+            collision_events.send_default();
+    
+            // Bricks should be despawned and increment the scoreboard on collision
+            if maybe_brick.is_some() {
+                scoreboard.score += 1;
+                commands.entity(collider_entity).despawn();
+            }
+    
+            // reflect the ball when it collides
             let mut reflect_x = false;
             let mut reflect_y = false;
-
+    
             // only reflect if the ball's velocity is going in the opposite direction of the
             // collision
             match collision {
-                Collision::Left => reflect_x = ball_velocity.x > 0.0,
-                Collision::Right => reflect_x = ball_velocity.x < 0.0,
-                Collision::Top => reflect_y = ball_velocity.y < 0.0,
-                Collision::Bottom => reflect_y = ball_velocity.y > 0.0,
+                Collision::Left => reflect_x = enemmy_velocity.x > 0.0,
+                Collision::Right => reflect_x = enemmy_velocity.x < 0.0,
+                Collision::Top => reflect_y = enemmy_velocity.y < 0.0,
+                Collision::Bottom => reflect_y = enemmy_velocity.y > 0.0,
                 Collision::Inside => { /* do nothing */ }
             }
-
+    
             // reflect velocity on the x-axis if we hit something on the x-axis
             if reflect_x {
-                ball_velocity.x = -ball_velocity.x;
+                enemmy_velocity.x = -enemmy_velocity.x;
             }
-
+    
             // reflect velocity on the y-axis if we hit something on the y-axis
             if reflect_y {
-                ball_velocity.y = -ball_velocity.y;
+                enemmy_velocity.y = -enemmy_velocity.y;
             }
         }
     }

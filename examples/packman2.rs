@@ -24,7 +24,7 @@ const ENEMMY_STARTING_POSITION: Vec3 = Vec3::new(0.0, 20.0, 1.0);
 const BALL_SIZE: Vec3 = Vec3::new(10.0, 10.0, 0.0);
 const PACKMAN_SIZE: Vec3 = Vec3::new(40.0, 40.0, 40.0);
 const ENEMMY_SIZE: Vec3 = Vec3::new(30.0, 30.0, 30.0);
-const BALL_SPEED: f32 = 200.0;
+const BALL_SPEED: f32 = 400.0;
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 
 const WALL_THICKNESS: f32 = 10.0;
@@ -171,7 +171,7 @@ impl WallBundle {
 // This resource tracks the game's score
 #[derive(Resource)]
 struct Scoreboard {
-    score: usize,
+    score: isize,
 }
 
 // Add the game's entities to our world
@@ -197,6 +197,7 @@ fn setup(
             ..default()
         },
         Ball,
+        Collider,
     ));
 
     // Enemmy
@@ -360,6 +361,7 @@ fn check_for_collisions(
     mut ball_query: Query<&Transform, With<Ball>>,
     mut enemmy_query: Query<(&mut Velocity, &Transform), With<Enemmy>>,
     collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
+    collider_enemmy_query: Query<(Entity, &Transform, Option<&Brick>, Option<&Ball>), With<Collider>>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
     let ball_transform = ball_query.single_mut();
@@ -369,7 +371,7 @@ fn check_for_collisions(
     let enemmy_size = enemmy_transform.scale.truncate();
 
     // check collision with walls
-    for (collider_entity, transform, maybe_brick) in &collider_query {
+    for (_collider_entity, transform, maybe_brick) in &collider_query {
         let collision = collide(
             ball_transform.translation,
             ball_size,
@@ -384,7 +386,7 @@ fn check_for_collisions(
             // Bricks should be despawned and increment the scoreboard on collision
             if maybe_brick.is_some() {
                 scoreboard.score += 1;
-                commands.entity(collider_entity).despawn();
+                commands.entity(_collider_entity).despawn();
             }
 
             // reflect the ball when it collides
@@ -393,7 +395,7 @@ fn check_for_collisions(
         }
     }
 
-    for (collider_entity, transform, maybe_brick) in &collider_query {
+    for (_collider_entity, transform, maybe_brick, maybe_ball) in &collider_enemmy_query {
         let collision = collide(
             enemmy_transform.translation,
             enemmy_size,
@@ -406,10 +408,7 @@ fn check_for_collisions(
             collision_events.send_default();
     
             // Bricks should be despawned and increment the scoreboard on collision
-            if maybe_brick.is_some() {
-                scoreboard.score += 1;
-                commands.entity(collider_entity).despawn();
-            }
+
     
             // reflect the ball when it collides
             let mut reflect_x = false;
@@ -424,7 +423,13 @@ fn check_for_collisions(
                 Collision::Bottom => reflect_y = enemmy_velocity.y > 0.0,
                 Collision::Inside => { /* do nothing */ }
             }
-    
+            if maybe_brick.is_some() {
+              reflect_x = false;
+              reflect_y = false;
+            }
+            if maybe_ball.is_some(){
+                scoreboard.score -= 1;
+            }
             // reflect velocity on the x-axis if we hit something on the x-axis
             if reflect_x {
                 enemmy_velocity.x = -enemmy_velocity.x;
